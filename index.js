@@ -1,6 +1,7 @@
 'use strict'
 
 const messagesData = []
+const loadedMessagesId = new Set()
 
 /*Estilos de la página */
 document.body.style.cssText = `
@@ -119,8 +120,24 @@ const addChatHeader = container => {
     $chatHeader.style.cssText = `
     background-color:#00425A;
     height:55px;
-
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding-top:20px;
+    box-sizing:border-box;
     `
+
+    const $loading = document.createElement("span")
+    $loading.classList.add("loading")
+    $loading.innerText = "Loading..."
+    $loading.style.cssText = `
+    color:white;
+    font-weight:bold;
+    font-family:helvetica;
+    font-size:13px;
+    `
+
+    $chatHeader.appendChild($loading)
     container.appendChild($chatHeader)
 }
 
@@ -214,6 +231,9 @@ const addChatInputSection = container => {
 const ensureDoubleNumber = number => number < 10 ? "0" + number : number
 
 const areEqualsDate = (date1, date2) => {
+
+    if (!date1 || !date2) return true
+
     const parsedDate1 = new Date(date1)
     const parsedDate2 = new Date(date2)
 
@@ -227,7 +247,7 @@ const areEqualsDate = (date1, date2) => {
  * 
  * @param {*} ownMesage True: es un mensaje enviado por el usuario.
  */
-const addMessageComponent = (ignoreScrollPosition, ...messages ) => {
+const addMessageComponent = (ignoreScrollPosition, ...messages) => {
 
     const $messagesList = document.querySelector(".messages-list")
     const $messagesListContainer = document.querySelector(".messages-list-container")
@@ -235,16 +255,16 @@ const addMessageComponent = (ignoreScrollPosition, ...messages ) => {
     if (!$messagesList || !$messagesListContainer) return
 
     const fragment = document.createDocumentFragment()
-    console.log(messages)
+
     messages?.forEach(msg => {
 
         const { user, message, date, ownMesage } = msg
 
-        const parsedMessage = parsedMessage?.trim()
+        const parsedMessage = message?.trim()
 
         const lastMessageData = messagesData[messagesData.length - 1] || null
 
-        if (!(parsedMessage.length > 0)) return //Evitar mensajes vacios
+        if (!(parsedMessage?.length > 0)) return //Evitar mensajes vacios
 
         const $message = document.createElement("li")
 
@@ -259,7 +279,6 @@ const addMessageComponent = (ignoreScrollPosition, ...messages ) => {
         flex-direction: column;
         gap:5px;
         position:relative;
-        text-transform: capitalize;
         overflow:none;
         word-break:break-all;
     `
@@ -273,9 +292,11 @@ const addMessageComponent = (ignoreScrollPosition, ...messages ) => {
         if (!lastMessageData || lastMessageData.user !== user || !areEqualsDate(lastMessageData.date, date)) {
             const $userName = document.createElement("span")
             $userName.style.cssText = `
-        font-family:helvetica;
-        font-weight:bold;
-        `
+            font-family:helvetica;
+            font-weight:bold;
+            text-transform: capitalize;
+
+            `
             $userName.innerText = user
             $message.appendChild($userName)
         }
@@ -283,37 +304,51 @@ const addMessageComponent = (ignoreScrollPosition, ...messages ) => {
 
         //añadir cuerpo del mensaje
 
-        const $messageText = document.createElement("p")
-        $messageText.innerText = parsedMessage
-        $messageText.style.cssText = `
-    margin:0;
-    font-family:helvetica;
+        if (/^https?:\/[^\s]*\.(jpg|jpeg|png|gif|webp)/i.test(parsedMessage)) {
+            //Imagen
 
-    `
-        $message.appendChild($messageText)
+            addImagePreview($message, parsedMessage)
+
+        } else if (/^https?:\/\/[\w\-]+(\.[\w\-]+)+[\/#?]?.*$/i.test(parsedMessage)) {
+            //pagina web
+            addWebPreview($message, parsedMessage)
+        } else {
+            //texto
+            const $messageText = document.createElement("p")
+            $messageText.innerText = parsedMessage
+            $messageText.style.cssText = `
+            margin:0;
+            font-family:helvetica;
+
+            `
+            $message.appendChild($messageText)
+        }
+
 
 
         //añadir hora
         const parsedDate = new Date(date)
-        if (!isNaN(parsedDate)) {
+        if (date && !isNaN(parsedDate)) {
 
             const $messageTime = document.createElement("span")
             $messageTime.innerText =
                 `${ensureDoubleNumber(parsedDate.getHours())}:${ensureDoubleNumber(parsedDate.getMinutes())}`
             $messageTime.style.cssText = `
-        font-family:helvetica;
-        font-size:12px;
-        align-self: end;
-        font-weight:bold;
-        color:#666666;
-        `
+            font-family:helvetica;
+            font-size:12px;
+            align-self: end;
+            font-weight:bold;
+            color:#666666;
+            `
             $message.appendChild($messageTime)
+
+
+
+            //agregar elemento de fecha (si no existe y hay algun mensaje)
+            if (!lastMessageData || !areEqualsDate(lastMessageData.date, date))
+                addDateSeparator(fragment, date)
+
         }
-
-
-        //agregar elemento de fecha (si no existe y hay algun mensaje)
-        if (!lastMessageData || !areEqualsDate(lastMessageData.date, date))
-            addDateSeparator(fragment, date)
 
         //añadir data a la lista de mensajes
         messagesData.push({ user, message: parsedMessage, date, ownMesage })
@@ -336,20 +371,63 @@ const addMessageComponent = (ignoreScrollPosition, ...messages ) => {
         $messagesListContainer.scrollTop = $messagesListContainer.scrollHeight
 }
 
+const addImagePreview = async (container, imageUrl) => {
+    const frag = document.createDocumentFragment()
+    //url plano
+    const $messageUrl = document.createElement("a")
+    $messageUrl.href = imageUrl
+    $messageUrl.innerText = imageUrl
+    $messageUrl.style.cssText = `
+    font-family:helvetica;
+    font-weight:bold;
+
+    `
+    frag.appendChild($messageUrl)
+
+    const $messageImage = document.createElement("img")
+    $messageImage.src = imageUrl
+    frag.appendChild($messageImage)
+
+    container.appendChild(frag)
+}
+
+const addWebPreview = async (container, url) => {
+    const $messageUrlPreview = document.createElement("div")
+    $messageUrlPreview.style.cssText = `
+    display:flex;
+    flex-direction:column;
+    gap: 5px;
+    `
+
+    //anadir url plano
+    const $messageUrl = document.createElement("a")
+    $messageUrl.href = url
+    $messageUrl.innerText = url
+    $messageUrl.style.cssText = `
+    font-family:helvetica;
+    font-weight:bold;
+
+    `
+    $messageUrlPreview.appendChild($messageUrl)
+
+    //obtener detalles de pagina 
 
 
+    container.appendChild($messageUrlPreview)
+}
 
-//
 
 const getStoredUsers = () => {
     const users = localStorage.getItem("users") //Obtener valores anteriores del ls
     return users?.split(",") || []
 }
 
-const saveNewUser = userName => {
+const saveNewUser = () => {
+    const userName = prompt("Ingresa tu nombre de usuario:")
     const usersSet = new Set(getStoredUsers())
     usersSet.add(userName.trim().toLowerCase())
     localStorage.setItem("users", Array.from(usersSet).join(",")) //guardar en ls incluyendo al nuevo
+    return userName
 }
 
 const addNewMessageEvent = () => {
@@ -364,12 +442,11 @@ const addNewMessageEvent = () => {
     const usersList = getStoredUsers()
     let user = usersList[usersList.length - 1]
     if (!user) {
-        user = prompt("Ingresa tu nombre de usuario:")
-        saveNewUser(user)
+        user = saveNewUser()
     }
 
     uploadMessageToServer(user, text).then(res => {
-        if(res) loadDataFromServer()
+        if (res) loadDataFromServer(true)
     })
 
 
@@ -399,26 +476,49 @@ const addDateSeparator = (container, date) => {
 }
 
 
-const loadDataFromServer = async () => {
+const loadDataFromServer = async (ignoreScrollPosition) => {
 
-    const usersList = getStoredUsers()
-    const currentUser = usersList[usersList.length - 1]
+    console.log("Cargando datos del servidor.")
+
+    //añadir mensaje de loading
+    const $loading = document.querySelector(".loading")
+    if ($loading) $loading.style.visibility = "visible";
 
     try {
         const r = await fetch("http://uvgenios.online/api/messages")
         const res = await r.json()
-       
-        const messages = res.map(msg => ({ user: msg.user, message: msg.text, date: msg.created_on, ownMesage: currentUser === msg.user?.trim().toLowerCase() }))
 
-        addMessageComponent(false, ...messages)
+        const storedUsers = getStoredUsers()
+
+        const messagesToLoad = res.filter(msg => !loadedMessagesId.has(msg.id)) //filtrar los ya cargados
+        const messages = messagesToLoad.map(msg => {
+            loadedMessagesId.add(msg.id) //anadir id a la lista
+            return {
+                user: msg.user,
+                message: msg.text,
+                date: msg.created_on,
+                ownMesage: storedUsers.includes(msg.user?.trim().toLowerCase())
+            }
+
+        })
+
+        addMessageComponent(ignoreScrollPosition, ...messages)
 
     } catch (ex) {
         console.error("Error al obtener data del servidor. ", ex)
+    } finally {
+        const $loading = document.querySelector(".loading")
+        if ($loading) $loading.style.visibility = "hidden";
+
     }
 
 }
 
 const uploadMessageToServer = async (user, text) => {
+
+    //Mensaje de loading
+    const $loading = document.querySelector(".loading")
+    if ($loading) $loading.style.visibility = "visible";
 
     try {
         const body = {
@@ -440,10 +540,9 @@ const uploadMessageToServer = async (user, text) => {
 }
 
 
-const userName = "anonimo"
 
-saveNewUser(userName)
-
+saveNewUser()
 addPhoneComponent(document.body)
+loadDataFromServer(true)
 
-loadDataFromServer()
+setInterval(() => loadDataFromServer(false), 10000)
