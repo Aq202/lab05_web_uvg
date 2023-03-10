@@ -148,6 +148,7 @@ const addChatMessagesList = container => {
     $messagesListContainer.style.cssText = `
     overflow-y:auto;
     overflow-x:none;
+    background:radial-gradient(transparent, #00425a5c);
     `
 
     const $messagesList = document.createElement("ul")
@@ -181,12 +182,15 @@ const addChatInputSection = container => {
     $chatInputSection.style.cssText = `
     display:grid;
     grid-template-columns: 1fr min-content;
+    grid-template-rows: 1fr min-content;
     padding: 15px 20px;
-    gap: 15px;
+    column-gap: 15px;
+    row-gap:7px;
     background-color:#f2f2f2;
     height:fit-content;
     box-sizing:border-box;
     `
+
 
     const $chatInput = document.createElement("textarea")
 
@@ -200,9 +204,32 @@ const addChatInputSection = container => {
     max-height:200px;
     `
 
+    const $charsCounter = document.createElement("span")
+    
+    $charsCounter.innerText = "0/140"
+    
+    $charsCounter.style.cssText = `
+    grid-row:2;
+    justify-self:end;
+    font-family:helvetica;
+    font-size:12px;
+    color:gray;
+    `
+
+
+
+
     $chatInput.addEventListener("keyup", e => {
         if (e.key === "Enter") addNewMessageEvent()
+
+        const value = e.target.value?.trim() ?? ""
+        
+        $charsCounter.innerText = `${value.length}/140`
+        $charsCounter.style.color = value.length > 140 ? "red" : "gray";
+
     })
+
+    
 
 
     const $sendButton = document.createElement("button")
@@ -224,6 +251,7 @@ const addChatInputSection = container => {
 
 
     $chatInputSection.appendChild($chatInput)
+    $chatInputSection.appendChild($charsCounter)
     $chatInputSection.appendChild($sendButton)
     container.appendChild($chatInputSection)
 }
@@ -274,7 +302,7 @@ const addMessageComponent = (ignoreScrollPosition, ...messages) => {
         padding: 10px;
         background-color:#e3e3e3;
         border-radius:10px;
-        box-shadow: 0 0 3px 1px #0000001d;
+        box-shadow: 0 0 5px 3px #0000001d;
         display: flex;
         flex-direction: column;
         gap:5px;
@@ -284,7 +312,7 @@ const addMessageComponent = (ignoreScrollPosition, ...messages) => {
     `
 
         if (ownMesage) {
-            $message.style.backgroundColor = "rgb(189 214 223)"
+            $message.style.backgroundColor = "#E9F5E9"
             $message.style.alignSelf = "end"
         }
 
@@ -410,9 +438,12 @@ const addWebPreview = async (container, url) => {
     `
     $messageUrlPreview.appendChild($messageUrl)
 
-    //obtener detalles de pagina 
+    //añadir vista previa
+    const $iframe = document.createElement("iframe")
+    $iframe.src = url
 
 
+    $messageUrlPreview.appendChild($iframe)
     container.appendChild($messageUrlPreview)
 }
 
@@ -423,7 +454,8 @@ const getStoredUsers = () => {
 }
 
 const saveNewUser = () => {
-    const userName = prompt("Ingresa tu nombre de usuario:")
+    const userName = "Luis"
+    //const userName = prompt("Ingresa tu nombre de usuario:")
     const usersSet = new Set(getStoredUsers())
     usersSet.add(userName.trim().toLowerCase())
     localStorage.setItem("users", Array.from(usersSet).join(",")) //guardar en ls incluyendo al nuevo
@@ -437,7 +469,7 @@ const addNewMessageEvent = () => {
 
     const text = textarea.value.trim()
 
-    if (text.length === 0) return
+    if (text.length === 0 || text.length > 140) return
 
     const usersList = getStoredUsers()
     let user = usersList[usersList.length - 1]
